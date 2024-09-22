@@ -61,17 +61,12 @@ console.log("signer0: ", signer0);
 const local_account_0 = process.env.NEXT_PUBLIC_LOCALHOST_ACCOUNT_0;
 const local_account_0_secret_key = process.env.NEXT_PUBLIC_PRIVATE_KET;
 
-function getContract(address, abi, signerOrProvider) {
-  const contract_ = new ethers.Contract(address, abi, signerOrProvider);
-
-  console.log("worldCoinContract: ", contract_);
-}
-
-export const createPool = async () => {
-  const recipient = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+export const createPool = async (recipient) => {
+  console.log("createPool recipient", recipient);
   const slippageTolerance = new Percent(20, 100);
   const deadline = Math.floor(new Date().getTime() + 1800);
 
+  const token_wcn = new Token(31337, MY_ERC20_ADDRESS, 18, "world coin", "WCN");
   const token_weth = new Token(
     31337,
     WETH_ADDRESS,
@@ -79,10 +74,13 @@ export const createPool = async () => {
     "Wrapped Ether",
     "WETH"
   );
-  const token_wcn = new Token(31337, MY_ERC20_ADDRESS, 18, "world coin", "WCN");
+  const amount0_WCN = ethers.utils.parseUnits("3000", 18);
+  const amount1_WETH = ethers.utils.parseUnits("2", 18);
+
+  console.log("amount0_WCN: ", BigNumber.from(amount0_WCN));
 
   const fee = FeeAmount.LOW_300;
-  const sqrtRatioX96 = encodeSqrtRatioX96(2000, 10);
+  const sqrtRatioX96 = encodeSqrtRatioX96(1, 2000);
   console.log("sqrtRatioX96: ", sqrtRatioX96);
 
   const tickCurrent = TickMath.getTickAtSqrtRatio(sqrtRatioX96);
@@ -92,16 +90,21 @@ export const createPool = async () => {
   const liquidity = 100;
 
   //constructor(tokenA: Token, tokenB: Token, fee: FeeAmount, sqrtRatioX96: BigintIsh, liquidity: BigintIsh, tickCurrent: number, ticks?: TickDataProvider | (Tick | TickConstructorArgs)[]);
+  // createPool :      address token0, address token1,uint24 fee,uint160 sqrtPriceX96
   const pool_weth_wcn = new Pool(
-    token_weth,
     token_wcn,
+    token_weth,
     fee,
     sqrtRatioX96, //weth=10,wcn=100
     0, //liquidity: BigintIsh
     tickCurrent, //tickCurrent: number
     [] //TickDataProvider
   );
-
+  console.log("pool_weth_wcn-token0Price", pool_weth_wcn.token0Price());
+  console.log("pool_weth_wcn-token0Price", pool_weth_wcn.token0Price());
+  console.log("pool_weth_wcn-liquidity", pool_weth_wcn.liquidity());
+  console.log("pool_weth_wcn-tickSpacing", pool_weth_wcn.tickSpacing());
+  //  return;
   let token0Permit = false;
   let token1Permit = false;
   let createPool = true;
@@ -213,6 +216,15 @@ export const readContract = async () => {
     position_symbol,
     my_position_nft_id,
   };
+};
+
+export const getWethBalanceOnLocalForkChain = async (recipient) => {
+  const contract = new ethers.Contract(WETH_ADDRESS, WETH_ABI, provider);
+
+  const wethBalance = ethers.utils.formatUnits(
+    BigNumber.from(await contract.balanceOf(recipient)).toString()
+  );
+  return { contract, wethBalance };
 };
 
 export const onEvent = async () => {

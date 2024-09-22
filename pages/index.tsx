@@ -1,98 +1,48 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { ethers } from "ethers";
-import Web3Modal from "web3modal";
 
-import { readContract, createPool, onEvent } from "../context";
-
-const NOUFUNGIBLE_POSITION_MANAGER_ADDRESS =
-  process.env.NEXT_PUBLIC_NonfungiblePositionManager;
-
-const MAX_FEE_PER_GAS = 100000000000;
-const MAX_PRIORITY_FEE_PER_GAS = 100000000000;
+import { UniswapV3DemoContext } from "../context/UniswapV3DemoContext";
 
 const index = () => {
-  // //
-  // const doExe = async () => {
-  //   const contractData = await readContract();
-  //   console.log("````````readContract: ", contractData);
+  const { currentAccount, checkIfWalletConnected, connectWallet, createPool } =
+    useContext(UniswapV3DemoContext);
 
-  //   await createPool();
-  //   console.log("````````createPool~~~~~~~");
-  // };
+  const [poolAddress, setPoolAddress] = useState("Pool Not Create");
+  const [chainId, setChainId] = useState(0);
 
-  // useEffect(() => {
-  //   doExe();
-  // }, []);
-
-  // const doEvent = async () => {
-  //   await onEvent();
-  // };
-
-  // useEffect(() => {
-  //   doEvent();
-  // }, []);
-  const [activeAccount, setActiveAccount] = useState("");
-
-  const createPool_ = async () => {
-    const web3modal = new Web3Modal();
-    const connection = await web3modal.connect();
-    const provider = new ethers.providers.Web3Provider(connection);
-    console.log("provider", provider);
-    const signer = await provider.getSigner();
-    console.log("signer", signer);
-
-    const { calldata } = await createPool();
-
-    console.log("````````````````calldata````````````````````", calldata);
-    // const transaction = {
-    //   data: calldata,
-    //   to: NOUFUNGIBLE_POSITION_MANAGER_ADDRESS,
-    // };
-
-    // const tx = await provider.call(transaction);
-    const transaction = {
-      data: calldata,
-      to: NOUFUNGIBLE_POSITION_MANAGER_ADDRESS,
-      // value: ethers.utils.parseEther("1"),
-      // from: activeAccount,
-      // maxFeePerGas: MAX_FEE_PER_GAS,
-      // maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
-      gasLimit: 5000000,
-    };
-
-    // const local_account_0_secret_key = process.env.NEXT_PUBLIC_PRIVATE_KET;
-    // const wallet = new ethers.Wallet(local_account_0_secret_key, provider);
-    // const signedTx = signer.signTransaction(transaction);
-    const signedTx = await signer.sendTransaction(transaction);
-    // const txRes = await provider.sendTransaction(signedTx);
-
-    console.log("```````````````tx`````````````````````", signedTx);
+  const initialPool = async () => {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const chain_id = (await provider.getNetwork()).chainId;
+    console.log("chain ID: ", chain_id);
+    setChainId(chain_id);
+    const poolAdd = await createPool(provider);
+    setPoolAddress(poolAdd);
   };
-
-  const connectWallet = async () => {
-    try {
-      // @ts-ignore
-      if (!window.ethereum) return console.log("Install MetaMask");
-      // @ts-ignore
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      const firstAccount = accounts[0];
-      setActiveAccount(firstAccount);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  useEffect(() => {
-    connectWallet();
-  }, []);
 
   return (
-    <div>
+    <div style={{ textAlign: "center" }}>
+      <br />
+      -----------------------分割----------------------
+      <br />
       <button onClick={() => connectWallet()}>Connect Wallet</button>
-      <h2>{activeAccount}</h2>
-      <button onClick={() => createPool_()}>create Pool</button>
+      <br />
+      -----------------------分割----------------------
+      <br />
+      <h2>Chain ID： {chainId}</h2>
+      <br />
+      <h2>Wallet account： {currentAccount}</h2>
+      <br />
+      -----------------------分割----------------------
+      <br />
+      <button onClick={() => initialPool()}>Create Pool</button>
+      <br />
+      -----------------------分割----------------------
+      <br />
+      <h2>New pool address： {poolAddress}</h2>
+      <br />
+      <button onClick={() => checkIfWalletConnected()}>
+        Add [local_fork_sepolia] to MetaMask
+      </button>
     </div>
   );
 };
