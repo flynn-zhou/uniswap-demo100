@@ -71,25 +71,14 @@ export const TOKEN_AMOUNT_TO_APPROVE_FOR_TRANSFER = 1000000000000;
 
 export const CREATE_POOL_INFO = {
   TOKEN_0_ADDRESS: ADDRESS_MONGO_MCN,
-  TOKEN_1_ADDRESS: ADDRESS_JAPAN_JCN,
+  TOKEN_1_ADDRESS: ADDRESS_SEPOLIA_WETH,
   POOL_FEE: FeeAmount.HIGH,
   //The maximum token amounts we want to provide. BigIntish accepts number, string or JSBI
-  INTEND_TO_PROVIDE_AMOUNT_0: 20000,
-  INTEND_TO_PROVIDE_AMOUNT_1: 20000,
+  INTEND_TO_PROVIDE_AMOUNT_0: 800,
+  INTEND_TO_PROVIDE_AMOUNT_1: 500,
   // create new pool address
-  POOL_ADDRESS: "0x696beC713e2b40D9eD27e76679480F1D069dB88F",
+  POOL_ADDRESS: "0x57D1CaBa0bFE969A726CC705E94D1aD7589211Eb",
 };
-
-// export const CREATE_POOL_INFO = {
-//   TOKEN_0_ADDRESS: ADDRESS_MONGO_MCN,
-//   TOKEN_1_ADDRESS: ADDRESS_CHINA_CCN,
-//   POOL_FEE: FeeAmount.HIGH,
-//   //The maximum token amounts we want to provide. BigIntish accepts number, string or JSBI
-//   INTEND_TO_PROVIDE_AMOUNT_0: 20000,
-//   INTEND_TO_PROVIDE_AMOUNT_1: 20000,
-//   // create new pool address
-//   POOL_ADDRESS: "0x696beC713e2b40D9eD27e76679480F1D069dB88F",
-// };
 
 // pool create input
 

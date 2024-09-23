@@ -181,7 +181,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
     );
     if (Number(tokenData.balance) < 1) {
       if (tokenData.weth_flag) {
-        //weth 需要先deposit
+        //weth 需要先deposit, 不要
         console.log("Your WETH balance < 1");
         console.log("WETH token", tokenNumberForLogFlag, "contract.deposit...");
         const depositTx = await tokenData.contract.deposit({
@@ -299,10 +299,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
       const createdPoolAddress = await factory_contract.getPool(
         CREATE_POOL_INFO.TOKEN_0_ADDRESS,
         CREATE_POOL_INFO.TOKEN_1_ADDRESS,
-        CREATE_POOL_INFO.POOL_FEE,
-        {
-          gasLimit: estimateGasValue,
-        }
+        CREATE_POOL_INFO.POOL_FEE
       );
 
       console.log("New Pool address", createdPoolAddress);
@@ -408,7 +405,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
       to: ADDRESS_NPM,
       value: value,
       from: currentAccount,
-      gasLimit: 5000000,
+      gasLimit: 10000000,
     };
     console.log("send the transacting: ", transaction);
     const txRes = await signer.sendTransaction(transaction);
@@ -505,7 +502,8 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
       intendToProvideAmount1
     );
 
-    const poolState_final = await getCurrentPoolState(pool_contract);
+    const pool_contract_after = getContract(poolAddress, POOL_ABI, theSigner);
+    const poolState_final = await getCurrentPoolState(pool_contract_after);
     console.log(
       "after pool state: ",
       poolState_final,
