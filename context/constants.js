@@ -3,6 +3,8 @@
 // import { SupportedChainId, Token } from "@uniswap/sdk-core";
 import { ethers } from "ethers";
 
+import { FeeAmount } from "@uniswap/v3-sdk";
+
 import ERC20_abi from "./abi/abi-erc20.json";
 import WETH_abi from "./abi/abi-weth.json";
 import WorldCoin_abi from "./abi/WorldCoin.json";
@@ -12,13 +14,15 @@ import FACTORY_abi from "./abi/abi-v3-factory.json";
 import POOL_abi from "./abi/abi-v3-pool.json";
 import COMMON_MY_ERC20_abi from "./abi/common-my-erc20.json";
 
+// ABI's
+
+export const OUR_ERC20_ABI = COMMON_MY_ERC20_abi; //our self erc20 token abi
 export const ERC20_ABI = ERC20_abi;
 export const WETH_ABI = WETH_abi;
 export const WORLDCOIN_ABI = WorldCoin_abi;
 export const NPM_ABI = NonfungiblePositionManager_json.abi;
 export const FACTORY_ABI = FACTORY_abi;
 export const POOL_ABI = POOL_abi;
-export const OUR_ERC20_ABI = COMMON_MY_ERC20_abi;
 
 // Addresses
 
@@ -53,6 +57,7 @@ export const ADDRESS_WORLD_WCN = "0xfF648f576F6a8F6686ba1B2d12a47fD6E7876E9C";
 export const ADDRESS_MONGO_MCN = "0x0316BF0634653eF9be054895Af2435B9824183ee";
 export const ADDRESS_JAPAN_JCN = "0xfb27a13a86420B759f991ADA817E08457406461d";
 export const ADDRESS_CHINA_CCN = "0x51f8610d4be85B12066bE20E18Fa7aa336EA4a5C";
+export const ADDRESS_SPECIAL_CCN = "0x00953cAF2B6cb2D52B8d6A61EeEaFe4e321842e6";
 
 // Currencies and Tokens
 
@@ -62,14 +67,31 @@ export const MAX_FEE_PER_GAS = "100000000000";
 export const MAX_PRIORITY_FEE_PER_GAS = "100000000000";
 export const TOKEN_AMOUNT_TO_APPROVE_FOR_TRANSFER = 1000000000000;
 
-// ABI's
+// create pool info
 
-//
-// export const TOKEN_0_ADDRESS = ADDRESS_CHINA_CCN;
-// export const TOKEN_1_ADDRESS = ADDRESS_WORLD_WCN;
-export const TOKEN_0_ADDRESS = ADDRESS_MONGO_MCN;
-export const TOKEN_1_ADDRESS = ADDRESS_CHINA_CCN;
+export const CREATE_POOL_INFO = {
+  TOKEN_0_ADDRESS: ADDRESS_MONGO_MCN,
+  TOKEN_1_ADDRESS: ADDRESS_JAPAN_JCN,
+  POOL_FEE: FeeAmount.HIGH,
+  //The maximum token amounts we want to provide. BigIntish accepts number, string or JSBI
+  INTEND_TO_PROVIDE_AMOUNT_0: 20000,
+  INTEND_TO_PROVIDE_AMOUNT_1: 20000,
+  // create new pool address
+  POOL_ADDRESS: "0x696beC713e2b40D9eD27e76679480F1D069dB88F",
+};
 
-//
+// export const CREATE_POOL_INFO = {
+//   TOKEN_0_ADDRESS: ADDRESS_MONGO_MCN,
+//   TOKEN_1_ADDRESS: ADDRESS_CHINA_CCN,
+//   POOL_FEE: FeeAmount.HIGH,
+//   //The maximum token amounts we want to provide. BigIntish accepts number, string or JSBI
+//   INTEND_TO_PROVIDE_AMOUNT_0: 20000,
+//   INTEND_TO_PROVIDE_AMOUNT_1: 20000,
+//   // create new pool address
+//   POOL_ADDRESS: "0x696beC713e2b40D9eD27e76679480F1D069dB88F",
+// };
+
+// pool create input
 
 export const DEPOSIT_WETH_AMOUNT = ethers.utils.parseEther("1000");
+export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";

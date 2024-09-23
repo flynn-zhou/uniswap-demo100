@@ -20,6 +20,7 @@ import {
   computePoolAddress,
   TickMath,
   nearestUsableTick,
+  FullMath,
 } from "@uniswap/v3-sdk";
 
 import {
@@ -32,12 +33,11 @@ import {
 } from "@uniswap/sdk-core";
 
 import {
-  TOKEN_0_ADDRESS,
-  TOKEN_1_ADDRESS,
+  CREATE_POOL_INFO,
   OUR_ERC20_ABI,
   //
   ERC20_ABI,
-  ABI,
+  WETH_ABI,
   WORLDCOIN_ABI,
   NPM_ABI,
   FACTORY_ABI,
@@ -48,12 +48,15 @@ import {
   ADDRESS_QuoterV2,
   ADDRESS_SwapRouter02,
   //
+  ADDRESS_SEPOLIA_WETH,
+  //
   ADDRESS_CHINA_CCN,
   ADDRESS_JAPAN_JCN,
   ADDRESS_MONGO_MCN,
   ADDRESS_WORLD_WCN,
   //
-  DEPOSIT_AMOUNT,
+  DEPOSIT_WETH_AMOUNT,
+  ZERO_ADDRESS,
 } from "./constants";
 
 export const UniswapV3DemoContext = React.createContext();
@@ -93,7 +96,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
     setCurrentAccount(accounts[0]);
   };
 
-  const getContract = async (address, abi, providerOrSigner) => {
+  const getContract = (address, abi, providerOrSigner) => {
     // const provider = new ethers.providers.Web3Provider(window.ethereum);
     // const signer = await provider.getSigner();
     let contract = new ethers.Contract(address, abi, providerOrSigner);
@@ -103,12 +106,14 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
   };
 
   const getOurTokenContactInfo = async (provider, contractAddress) => {
+    let weth_flag = false;
+    let abi = OUR_ERC20_ABI;
+    if (contractAddress == ADDRESS_SEPOLIA_WETH) {
+      weth_flag = true;
+      abi = WETH_ABI;
+    }
     const theSigner = await provider.getSigner();
-    const contract = await getContract(
-      contractAddress,
-      OUR_ERC20_ABI,
-      theSigner
-    ); // token0 contract
+    const contract = await getContract(contractAddress, abi, theSigner); // token0 contract
     const [name, symbol, decimals, balance, allowance_to_npm] =
       await Promise.all([
         await contract.name(),
@@ -139,6 +144,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
       decimals,
       balance,
       allowance_to_npm,
+      weth_flag,
     };
   };
 
@@ -165,172 +171,141 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
     return PoolState;
   };
 
-  //创建池
-  const createPool = async (provider) => {
-    if (TOKEN_0_ADDRESS > TOKEN_1_ADDRESS) {
-      alert("token0 address must be < token1");
-      return;
-    }
-
-    const theSigner = await provider.getSigner();
-    const chainID = (await provider.getNetwork()).chainId;
-    console.log("chainID, theSigner : ", chainID, theSigner);
-
-    //starting var
-    const fee = FeeAmount.HIGH;
-    const slippageTolerance = new Percent(20, 100);
-    const deadline = Math.floor(new Date().getTime() + 1800);
-    const recipient = currentAccount;
-    const sqrtRatioX96 = encodeSqrtRatioX96(1, 1); //token1 token0
-    const tickCurrent = TickMath.getTickAtSqrtRatio(sqrtRatioX96);
-    //
-    // const upper_sqrtRatioX96 = encodeSqrtRatioX96(1, 1500);
-    // const lower_sqrtRatioX96 = encodeSqrtRatioX96(1, 2500);
-
-    // const tick_upper = TickMath.getTickAtSqrtRatio(upper_sqrtRatioX96);
-    // const tick_lower = TickMath.getTickAtSqrtRatio(lower_sqrtRatioX96);
-
-    //检查余额ADDRESS,MY_ERC20_ADDRESS
-
-    const token0Data = await getOurTokenContactInfo(provider, TOKEN_0_ADDRESS);
-    console.log("------token0Data: ", token0Data);
-
-    const token1Data = await getOurTokenContactInfo(provider, TOKEN_1_ADDRESS);
-    console.log("~~~~~~token1Data: ", token1Data);
-
-    //   The maximum token amounts we want to provide. BigIntish accepts number, string or JSBI
-    const amount0 = ethers.utils.parseUnits("20000", 18);
-    const amount1 = ethers.utils.parseUnits("20000", 18);
-
-    //Give approval to the contract(NonfungiblePositionManager.sol) to transfer tokens
-
-    //准备普通代币token0余额1
-    console.log("token0 balance before: ", currentAccount, token0Data.balance);
-    if (Number(token0Data.balance) < 1) {
-      console.log("contract.mint...");
-      const trxRes = await token0Data.contract.mint(
-        currentAccount,
-        ethers.utils.parseUnits("200000")
-      );
-
-      await trxRes.wait();
-      //重新检查余额
-      const newBalance = ethers.utils.formatUnits(
-        BigNumber.from(
-          await token0Data.contract.balanceOf(currentAccount)
-        ).toString()
-      );
-      console.log("token0 balance after: ", currentAccount, newBalance);
-    }
-
-    //准备普通代币token1余额1
-    console.log("token1 balance before: ", currentAccount, token1Data.balance);
-    if (Number(token1Data.balance) < 1) {
-      console.log("contract.mint...");
-      const trxRes = await token1Data.contract.mint(
-        currentAccount,
-        ethers.utils.parseUnits("200000")
-      );
-
-      await trxRes.wait();
-      //重新检查余额
-      const newBalance = ethers.utils.formatUnits(
-        BigNumber.from(
-          await token1Data.contract.balanceOf(currentAccount)
-        ).toString()
-      );
-      console.log("token1 balance after: ", currentAccount, newBalance);
-    }
-
-    // token 0 approve
+  const prepareAccountBalance = async (tokenData, tokenNumberForLogFlag) => {
     console.log(
-      "token 0 allowance(npm) before: ",
+      "token",
+      tokenNumberForLogFlag,
+      " balance before: ",
       currentAccount,
-      token0Data.allowance_to_npm
+      tokenData.balance
     );
-    if (Number(token0Data.allowance_to_npm) < 1) {
-      await token0Data.contract.approve(ADDRESS_NPM, amount1);
+    if (Number(tokenData.balance) < 1) {
+      if (tokenData.weth_flag) {
+        //weth 需要先deposit
+        console.log("Your WETH balance < 1");
+        console.log("WETH token", tokenNumberForLogFlag, "contract.deposit...");
+        const depositTx = await tokenData.contract.deposit({
+          value: DEPOSIT_WETH_AMOUNT,
+        });
+        await depositTx.wait();
 
-      const allowanceValue = await token0Data.contract.allowance(
+        //重新检查余额
+        const newBalance = ethers.utils.formatUnits(
+          BigNumber.from(
+            await tokenData.contract.balanceOf(currentAccount)
+          ).toString()
+        );
+        console.log("wethBal after: ", newBalance);
+      } else {
+        console.log("token", tokenNumberForLogFlag, "contract.mint...");
+        const mintTx = await tokenData.contract.mint(
+          currentAccount,
+          ethers.utils.parseUnits("200000")
+        );
+
+        await mintTx.wait();
+        //重新检查余额
+        const newBalance = ethers.utils.formatUnits(
+          BigNumber.from(
+            await tokenData.contract.balanceOf(currentAccount)
+          ).toString()
+        );
+        console.log(
+          "token",
+          tokenNumberForLogFlag,
+          " balance after: ",
+          newBalance
+        );
+      }
+    }
+  };
+
+  const prepareAccountApprove = async (
+    tokenData,
+    tokenNumberForLogFlag,
+    approveAmount
+  ) => {
+    console.log(
+      "token",
+      tokenNumberForLogFlag,
+      " allowance(npm) before: ",
+      currentAccount,
+      tokenData.allowance_to_npm
+    );
+    if (Number(tokenData.allowance_to_npm) < 1) {
+      await tokenData.contract.approve(ADDRESS_NPM, approveAmount);
+
+      const allowanceValue = await tokenData.contract.allowance(
         currentAccount,
         ADDRESS_NPM
       );
 
       console.log(
-        "token 0 allowance(npm) after: ",
+        "token",
+        tokenNumberForLogFlag,
+        " allowance(npm) after: ",
         currentAccount,
         allowanceValue
       );
     }
+  };
 
-    // token 1 approve
-    console.log(
-      "token 1 allowance(npm) before: ",
-      currentAccount,
-      token1Data.allowance_to_npm
-    );
-
-    if (Number(token1Data.allowance_to_npm) < 1) {
-      await token1Data.contract.approve(ADDRESS_NPM, amount0);
-      const allowanceValue = await token1Data.contract.allowance(
-        currentAccount,
-        ADDRESS_NPM
-      );
-
-      console.log(
-        "token 1 allowance(npm) after: ",
-        currentAccount,
-        allowanceValue
-      );
-    }
-
-    //check factory pool exists or not
-    const factory_contract = new ethers.Contract(
-      ADDRESS_FACTORY,
-      FACTORY_ABI,
-      theSigner
-    );
+  const checkFactoryExistsDestpool = async (signer) => {
+    const factory_contract = getContract(ADDRESS_FACTORY, FACTORY_ABI, signer);
     const estimateGasValue = await factory_contract.estimateGas.getPool(
-      TOKEN_0_ADDRESS,
-      TOKEN_1_ADDRESS,
-      fee
+      CREATE_POOL_INFO.TOKEN_0_ADDRESS,
+      CREATE_POOL_INFO.TOKEN_1_ADDRESS,
+      CREATE_POOL_INFO.POOL_FEE
     );
     console.log("estimateGasValue: ", estimateGasValue.toString());
 
     let poolAddress = await factory_contract.getPool(
-      TOKEN_0_ADDRESS,
-      TOKEN_1_ADDRESS,
-      fee,
+      CREATE_POOL_INFO.TOKEN_0_ADDRESS,
+      CREATE_POOL_INFO.TOKEN_1_ADDRESS,
+      CREATE_POOL_INFO.POOL_FEE,
       {
         gasLimit: estimateGasValue,
       }
     );
 
+    return poolAddress;
+  };
+
+  const createPoolAndInitialPriceIfNeed = async (
+    poolAddress,
+    signer,
+    sqrtRatioX96
+  ) => {
     console.log("poolAddress: ", poolAddress);
-    if (poolAddress == "0x0000000000000000000000000000000000000000") {
+    if (poolAddress == ZERO_ADDRESS) {
       console.log("Starting create pool");
       // create pool
-      const txsRes = await factory_contract.createPool(
-        TOKEN_0_ADDRESS.toLowerCase(),
-        TOKEN_1_ADDRESS.toLowerCase(),
-        fee,
+      const factory_contract = getContract(
+        ADDRESS_FACTORY,
+        FACTORY_ABI,
+        signer
+      );
+      const createPoolTx = await factory_contract.createPool(
+        CREATE_POOL_INFO.TOKEN_0_ADDRESS.toLowerCase(),
+        CREATE_POOL_INFO.TOKEN_1_ADDRESS.toLowerCase(),
+        CREATE_POOL_INFO.POOL_FEE,
         {
           gasLimit: 10000000,
         }
       );
-      await txsRes.wait();
+      await createPoolTx.wait();
       console.log("Create pool finished");
 
-      poolAddress = await factory_contract.getPool(
-        TOKEN_0_ADDRESS,
-        TOKEN_1_ADDRESS,
-        fee,
+      const createdPoolAddress = await factory_contract.getPool(
+        CREATE_POOL_INFO.TOKEN_0_ADDRESS,
+        CREATE_POOL_INFO.TOKEN_1_ADDRESS,
+        CREATE_POOL_INFO.POOL_FEE,
         {
           gasLimit: estimateGasValue,
         }
       );
 
-      console.log("New Pool address", poolAddress);
+      console.log("New Pool address", createdPoolAddress);
 
       // initial pool price
       console.log(
@@ -339,34 +314,34 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
         sqrtRatioX96.toString()
       );
 
-      const pool_contract = new ethers.Contract(
-        poolAddress,
-        POOL_ABI,
-        theSigner
-      );
-      const tx_initial = await pool_contract.initialize(
+      const pool_contract = getContract(createdPoolAddress, POOL_ABI, signer);
+      const initialTx = await pool_contract.initialize(
         sqrtRatioX96.toString(),
         {
           gasLimit: 3000000,
         }
       );
-      await tx_initial.wait();
+      await initialTx.wait();
       console.log("Pool price initialized");
+      return createdPoolAddress;
     } else {
       console.log("pool already exists, poolAddress= ", poolAddress);
+      return poolAddress;
     }
+  };
 
-    // return poolAddress;
-    console.log("-----------------------------------------------------");
-    const pool_contract = new ethers.Contract(poolAddress, POOL_ABI, theSigner);
-    console.log("pool_contract 1: ", pool_contract);
-    const poolState = await getCurrentPoolState(pool_contract);
-
-    console.log("before pool state: ", poolState);
-
+  const addLiquidityViaOptions = async (
+    chainID,
+    signer,
+    token0Data,
+    token1Data,
+    poolState,
+    intendToProvideAmount0,
+    intendToProvideAmount1
+  ) => {
     const Token0 = new Token(
       chainID,
-      TOKEN_0_ADDRESS,
+      CREATE_POOL_INFO.TOKEN_0_ADDRESS,
       token0Data.decimals,
       token0Data.name,
       token0Data.symbol
@@ -374,7 +349,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
 
     const Token1 = new Token(
       chainID,
-      TOKEN_1_ADDRESS,
+      CREATE_POOL_INFO.TOKEN_1_ADDRESS,
       token1Data.decimals,
       token1Data.name,
       token1Data.symbol
@@ -383,7 +358,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
     const configuredPool = new Pool(
       Token0,
       Token1,
-      fee,
+      CREATE_POOL_INFO.POOL_FEE,
       poolState.sqrtPriceX96.toString(),
       poolState.liquidity.toString(),
       poolState.tick
@@ -391,7 +366,7 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
 
     console.log("configuredPool: ", configuredPool);
 
-    const position1 = Position.fromAmounts({
+    const position = Position.fromAmounts({
       pool: configuredPool,
       tickLower:
         nearestUsableTick(
@@ -405,21 +380,20 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
           configuredPool.tickSpacing
         ) +
         configuredPool.tickSpacing * 2,
-      amount0: amount0.toString(),
-      amount1: amount1.toString(),
+      amount0: intendToProvideAmount0.toString(),
+      amount1: intendToProvideAmount1.toString(),
       useFullPrecision: false,
     });
-    console.log("position1: ", position1);
-    console.log("position1 liquidity: ", position1.liquidity);
+    console.log("position: ", position);
 
     const mintOptions = {
       recipient: currentAccount,
-      deadline: deadline,
-      slippageTolerance: slippageTolerance,
+      deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+      slippageTolerance: new Percent(50, 10_000),
     };
 
     const { calldata, value } = NonfungiblePositionManager.addCallParameters(
-      position1,
+      position,
       mintOptions
     );
 
@@ -437,15 +411,122 @@ export const UniswapV3DemoContextProvider = ({ children }) => {
       gasLimit: 5000000,
     };
     console.log("send the transacting: ", transaction);
-    const txRes = await theSigner.sendTransaction(transaction);
+    const txRes = await signer.sendTransaction(transaction);
     await txRes.wait();
-    console.log("Pool liquidity Added.");
+    console.log("Pool liquidity Added! response: ", txRes);
+  };
+
+  const getWei = (amountEth, decimals) => {
+    return ethers.utils.parseUnits(amountEth.toString(), decimals);
+  };
+
+  //创建池
+  const createPool = async (provider) => {
+    console.log("CREATE_POOL_INFO: ", CREATE_POOL_INFO);
+    const TOKEN_0_ADDRESS = CREATE_POOL_INFO.TOKEN_0_ADDRESS;
+    const TOKEN_1_ADDRESS = CREATE_POOL_INFO.TOKEN_1_ADDRESS;
+    if (TOKEN_0_ADDRESS > TOKEN_1_ADDRESS) {
+      alert("token0 address must be < token1");
+      return;
+    }
+
+    const theSigner = await provider.getSigner();
+    const chainID = (await provider.getNetwork()).chainId;
+    console.log("chainID, theSigner : ", chainID, theSigner);
+
+    //starting var
+    const sqrtRatioX96 = encodeSqrtRatioX96(1, 1); //token1 token0
+
+    //检查余额ADDRESS,MY_ERC20_ADDRESS
+
+    const token0Data = await getOurTokenContactInfo(provider, TOKEN_0_ADDRESS);
+    console.log("------token0Data: ", token0Data);
+
+    const token1Data = await getOurTokenContactInfo(provider, TOKEN_1_ADDRESS);
+    console.log("~~~~~~token1Data: ", token1Data);
+
+    //用户提供的注入池子的两种金额的最大值
+    const intendToProvideAmount0 = getWei(
+      CREATE_POOL_INFO.INTEND_TO_PROVIDE_AMOUNT_0,
+      token0Data.decimals
+    );
+    const intendToProvideAmount1 = getWei(
+      CREATE_POOL_INFO.INTEND_TO_PROVIDE_AMOUNT_1,
+      token1Data.decimals
+    );
+
+    //准备普通代币token0余额1
+    await prepareAccountBalance(token0Data, 0);
+
+    //准备普通代币token1余额1
+    await prepareAccountBalance(token1Data, 1);
+
+    // token 0 approve to NonfungiblePositionManager
+    await prepareAccountApprove(token0Data, 0, intendToProvideAmount0);
+
+    // token 1 approve to NonfungiblePositionManager
+    await prepareAccountApprove(token1Data, 1, intendToProvideAmount1);
+
+    //check factory pool exists or not
+    let checkedPoolAddress = await checkFactoryExistsDestpool(theSigner);
+
+    //createPool + Initialize Price
+    const poolAddress = await createPoolAndInitialPriceIfNeed(
+      checkedPoolAddress,
+      theSigner,
+      sqrtRatioX96
+    );
+
+    // return poolAddress;
+    console.log("-----------------------------------------------------");
+    const pool_contract = getContract(poolAddress, POOL_ABI, theSigner);
+
+    const poolState = await getCurrentPoolState(pool_contract);
+    console.log(
+      "before pool state: ",
+      poolState,
+      " | 价格：",
+      computeReadableValueFrom(
+        poolState.sqrtPriceX96,
+        token0Data.decimals,
+        token1Data.decimals
+      ).toString(),
+      " | 流动性：",
+      poolState.liquidity.toString()
+    );
+
+    await addLiquidityViaOptions(
+      chainID,
+      theSigner,
+      token0Data,
+      token1Data,
+      poolState,
+      intendToProvideAmount0,
+      intendToProvideAmount1
+    );
 
     const poolState_final = await getCurrentPoolState(pool_contract);
-
-    console.log("after pool state: ", poolState_final);
+    console.log(
+      "after pool state: ",
+      poolState_final,
+      " | 价格：",
+      computeReadableValueFrom(
+        poolState_final.sqrtPriceX96,
+        token0Data.decimals,
+        token1Data.decimals
+      ).toString(),
+      " | 流动性：",
+      poolState_final.liquidity.toString()
+    );
 
     return poolAddress;
+  };
+
+  const computeReadableValueFrom = (sqrtPriceX96, decimals0, decimals1) => {
+    return (
+      (Number(sqrtPriceX96) ** 2 * (10 ** decimals1 / 10 ** decimals0)) /
+      2 ** 192
+    );
   };
 
   const handleNetworkSwitch = async () => {

@@ -19,6 +19,10 @@ const index = () => {
     setPoolAddress(poolAdd);
   };
 
+  // useEffect(() => {
+  //   connectWallet();
+  // }, []);
+
   return (
     <div style={{ textAlign: "center" }}>
       <br />
